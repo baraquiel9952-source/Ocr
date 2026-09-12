@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Extractor de datos fiscales</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#A13D2C">
+<link rel="apple-touch-icon" href="/icon.svg">
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<style>
+  :root{
+    --paper:#FAF9F6;
+    --ink:#1C2331;
+    --ink-soft:#5B6270;
+    --line:#DDD8CC;
+    --sello:#A13D2C;
+    --sello-dark:#7E2E20;
+    --ok:#2F6B4F;
+    --card:#FFFFFF;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    padding:32px 16px 64px;
+  }
+  .wrap{max-width:520px;margin:0 auto;}
+
+  header{display:flex;align-items:center;gap:18px;margin-bottom:28px;}
+  .sello{
+    flex:0 0 auto;width:60px;height:60px;border-radius:50%;
+    border:2.5px solid var(--sello);color:var(--sello);
+    display:flex;align-items:center;justify-content:center;
+    transform:rotate(-8deg);
+    font-family:'Fraunces',serif;font-weight:600;font-size:9.5px;
+    text-align:center;line-height:1.15;letter-spacing:0.02em;
+    padding:4px;
+  }
+  h1{
+    font-family:'Fraunces',serif;font-weight:600;font-size:24px;
+    margin:0 0 4px;line-height:1.15;
+  }
+  header p{margin:0;color:var(--ink-soft);font-size:14px;}
+
+  .card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:22px;
+    margin-bottom:20px;
+  }
+  .card h2{
+    font-family:'Fraunces',serif;font-weight:600;font-size:16px;
+    margin:0 0 14px;
+  }
+
+  .drop{
+    border:1.5px dashed var(--line);
+    border-radius:4px;
+    padding:22px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .drop:hover, .drop.drag{border-color:var(--sello);background:#FFF7F5;}
+  .drop p{margin:0;font-size:14px;color:var(--ink-soft);}
+  .drop strong{color:var(--ink);}
+  #fileInput{display:none;}
+  #preview{
+    max-width:100%;max-height:220px;border-radius:3px;margin-top:14px;
+    display:none;
+  }
+  .doc-badge{
+    display:none;margin:10px 0 0;font-size:12px;font-weight:600;
+    color:var(--ok);
+  }
+  .qr-badge{
+    display:none;margin:4px 0 0;font-size:12px;font-weight:600;
+    color:var(--sello);
+  }
+
+  .progress-wrap{margin-top:14px;display:none;}
+  .progress-label{font-size:12px;color:var(--ink-soft);}
+
+  label{
+    display:block;font-size:12.5px;font-weight:600;color:var(--ink-soft);
+    margin:16px 0 6px;
+  }
+  label:first-of-type{margin-top:0;}
+  input[type=text]{
+    width:100%;padding:11px 12px;border:1px solid var(--line);
+    border-radius:3px;font-family:'Inter',sans-serif;font-size:15px;
+    color:var(--ink);background:#FFFDFB;
+  }
+  input[type=text]:focus{outline:2px solid var(--sello);outline-offset:1px;}
+  .hint{font-size:12px;color:var(--ink-soft);margin-top:10px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="sello">TRÁMITES<br>DIGITALES</div>
+    <div>
+      <h1>Extractor de datos</h1>
+      <p>Sube el documento y revisa los datos extraídos.</p>
+    </div>
+  </header>
+
+  <div class="card">
+    <h2>Sube el documento</h2>
+    <div class="drop" id="drop">
+      <p><strong>Toca para subir</strong> o arrastra una foto o PDF (INE, constancia de CURP o de situación fiscal)</p>
+      <img id="preview">
+      <p class="doc-badge" id="docBadge"></p>
+      <p class="qr-badge" id="qrBadge"></p>
+    </div>
+    <input type="file" id="fileInput" accept="image/*,application/pdf" capture="environment">
+    <div class="progress-wrap" id="progressWrap">
+      <p class="progress-label" id="progressLabel">Procesando…</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Datos extraídos</h2>
+    <label for="curp">CURP</label>
+    <input type="text" id="curp" placeholder="Se llena automáticamente">
+    <label for="nombre">Nombre completo</label>
+    <input type="text" id="nombre" placeholder="Se llena automáticamente">
+    <label for="rfc">RFC</label>
+    <input type="text" id="rfc" placeholder="Se llena automáticamente">
+    <label for="idcif">ID CIF</label>
+    <input type="text" id="idcif" placeholder="Se llena automáticamente">
+    <div class="hint">La extracción automática puede fallar — siempre revisa antes de usar los datos.</div>
+  </div>
+
+</div>
+
+<script>
+const drop = document.getElementById('drop');
+const fileInput = document.getElementById('fileInput');
+const preview = document.getElementById('preview');
+const docBadge = document.getElementById('docBadge');
+const qrBadge = document.getElementById('qrBadge');
+const progressWrap = document.getElementById('progressWrap');
+const progressLabel = document.getElementById('progressLabel');
+const curpField = document.getElementById('curp');
+const nombreField = document.getElementById('nombre');
+const rfcField = document.getElementById('rfc');
+const idcifField = document.getElementById('idcif');
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/service-worker.js').catch(() => {
+      // si falla el registro, la app sigue funcionando normal, solo sin modo offline
+    });
+  });
+}
+
+const DOC_LABELS = {
+  ine_frente: 'Documento detectado: INE (frente)',
+  ine_reverso: 'Documento detectado: INE (reverso)',
+  fiscal: 'Documento detectado: Constancia de situación fiscal',
+  desconocido: ''
+};
+
+drop.addEventListener('click', () => fileInput.click());
+['dragover','dragleave','drop'].forEach(evt => {
+  drop.addEventListener(evt, e => {
+    e.preventDefault();
+    drop.classList.toggle('drag', evt === 'dragover');
+  });
+});
+drop.addEventListener('drop', e => {
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => {
+  if (e.target.files[0]) handleFile(e.target.files[0]);
+});
+
+function resetFields(){
+  curpField.value = '';
+  nombreField.value = '';
+  rfcField.value = '';
+  idcifField.value = '';
+  docBadge.style.display = 'none';
+  qrBadge.style.display = 'none';
+}
+
+async function handleFile(file){
+  resetFields();
+  let imageDataUrl;
+  if (file.type === 'application/pdf') {
+    imageDataUrl = await pdfToImage(file);
+  } else {
+    imageDataUrl = await fileToCompressedImage(file);
+  }
+  if (!imageDataUrl) return;
+  preview.src = imageDataUrl;
+  preview.style.display = 'block';
+  await sendToEngine(imageDataUrl);
+}
+
+async function pdfToImage(file){
+  progressWrap.style.display = 'block';
+  progressLabel.textContent = 'Abriendo PDF…';
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const page = await pdf.getPage(1);
+    const viewport = page.getViewport({ scale: 2 });
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    return canvas.toDataURL('image/jpeg', 0.85);
+  } catch (err) {
+    progressLabel.textContent = 'No se pudo leer el PDF. Prueba subiendo una foto en su lugar.';
+    return null;
+  }
+}
+
+// Redimensiona/comprime la imagen antes de mandarla al backend: Vercel
+// limita el tamaño del cuerpo de la petición, así que no conviene mandar
+// fotos de 5-10 MB directo de la cámara.
+function fileToCompressedImage(file){
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const maxDim = 1600;
+      const scale = Math.min(maxDim / img.width, maxDim / img.height, 1);
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = () => resolve(null);
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+async function sendToEngine(imageDataUrl){
+  progressWrap.style.display = 'block';
+  progressLabel.textContent = 'Leyendo documento…';
+  try {
+    const resp = await fetch('/api/extract', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: imageDataUrl })
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      progressLabel.textContent = data.error || 'No se pudo procesar el documento.';
+      return;
+    }
+    curpField.value = data.curp || '';
+    nombreField.value = data.nombre || '';
+    rfcField.value = data.rfc || '';
+    idcifField.value = data.idcif || '';
+
+    if (DOC_LABELS[data.tipoDocumento]) {
+      docBadge.textContent = DOC_LABELS[data.tipoDocumento];
+      docBadge.style.display = 'block';
+    }
+    if (data.fuenteRfc === 'qr' || data.fuenteIdcif === 'qr') {
+      qrBadge.textContent = 'RFC / ID CIF completados desde el código QR';
+      qrBadge.style.display = 'block';
+    }
+  } catch (err) {
+    progressLabel.textContent = 'No se pudo conectar con el motor de lectura.';
+  } finally {
+    setTimeout(() => { progressWrap.style.display = 'none'; }, 600);
+  }
+}
+</script>
+</body>
+</html>

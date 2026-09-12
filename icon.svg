@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#1C2331"/>
+  <!-- documento -->
+  <rect x="166" y="120" width="150" height="200" rx="10" fill="#FAF9F6"/>
+  <polygon points="266,120 316,170 266,170" fill="#DDD8CC"/>
+  <rect x="188" y="185" width="106" height="10" rx="3" fill="#5B6270"/>
+  <rect x="188" y="212" width="106" height="10" rx="3" fill="#5B6270"/>
+  <rect x="188" y="239" width="70" height="10" rx="3" fill="#5B6270"/>
+  <!-- lupa -->
+  <circle cx="330" cy="330" r="52" fill="none" stroke="#A13D2C" stroke-width="16"/>
+  <line x1="368" y1="368" x2="410" y2="410" stroke="#A13D2C" stroke-width="18" stroke-linecap="round"/>
+</svg>

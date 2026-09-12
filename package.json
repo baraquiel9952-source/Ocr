@@ -1,0 +1,10 @@
+{
+  "name": "extractor-documentos",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "tesseract.js": "^5.0.5",
+    "jimp": "^0.22.12",
+    "jsqr": "^1.4.0"
+  }
+}
